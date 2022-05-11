@@ -99,9 +99,9 @@ def victoire(g: list) -> bool:
         [2, 4, 6],
     ]
 
-    for win in cases_alignes:
-        if (g[win[0]] == "X" and g[win[1]] == "X" and g[win[2]] == "X") ^ (
-                g[win[0]] == "O" and g[win[1]] == "O" and g[win[2]] == "O"):
+    for alignement in cases_alignes:
+        if (g[alignement[0]] == "X" and g[alignement[1]] == "X" and g[alignement[2]] == "X") ^ (
+                g[alignement[0]] == "O" and g[alignement[1]] == "O" and g[alignement[2]] == "O"):
             return True
     return False
 
