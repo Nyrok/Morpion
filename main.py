@@ -1,69 +1,136 @@
 import random
 import time
+import tkinter as tk
+from tkinter import messagebox, simpledialog
+from win32api import GetSystemMetrics
+import pygame
+
+root = tk.Tk()
+root.withdraw()
+pygame.init()
+font = pygame.font.Font(None, 32)
 
 
 def main(recommencer: bool = False) -> None:
+    """
+    Fonction qui permet de créer la Grille
+    :param recommencer: Savoir si on recommence la partie ou une nouvelle partie
+    """
+    pygame.display.set_caption("Morpion", "")
     global mode
+    global ecran
+    global jeu
+    global tour
     global joueur_x
     global joueur_o
-    if not recommencer:
-        joueur = input('Voulez-vous jouer contre un Joueur ? (oui / non)')
-        joueur_x = input('Quel est le pseudonyme du Joueur X ?')
-        if joueur.lower() == 'oui':
-            mode = "joueur"
-            joueur_o = input('Quel est le pseudonyme du Joueur O ?')
-        else:
-            mode = "pc"
-            joueur_o = 'Ordinateur'
-    print(joueur_x, 'versus', joueur_o)
-    time.sleep(2)
+    global score
+
+    ecran = pygame.display.set_mode((GetSystemMetrics(0), GetSystemMetrics(1)), pygame.RESIZABLE)
+    ecran.fill((0, 0, 0))
+    jeu = True
     grille = creer_grille()
-    affiche_grille(grille)
-    jouer("X" if random.randint(1, 2) == 1 else "O", grille)
+    if not recommencer:
+        joueur_x = simpledialog.askstring(title='Morpion', prompt='Quel est le pseudo du joueur X ?')
+        mode = 'joueur' if messagebox.askyesno('Morpion', 'Voulez-vous jouer contre un joueur ?') else 'pc'
+        if mode == 'joueur':
+            joueur_o = simpledialog.askstring(title='Morpion', prompt='Quel est le pseudo du joueur O ?')
+        else:
+            joueur_o = 'Ordinateur'
+        score = {joueur_x: 0, joueur_o: 0}
+    tour = 'X' if random.randint(1, 2) == 1 else 'O'
+    score_text = font.render('Score: ({}) {} - {} ({})'
+                             .format(joueur_x, score[joueur_x], score[joueur_o], joueur_o), True, (255, 255, 255))
+    score_text_Rect = score_text.get_rect()
+    score_text_Rect.center = (GetSystemMetrics(0) // 2, GetSystemMetrics(1) // 2.5)
+    ecran.blit(score_text, score_text_Rect)
+    if tour == 'O' and mode == 'pc':
+        jouer(tour, grille)
+    while jeu:
+        affiche_grille()
+        for event in pygame.event.get():
+            if event.type == pygame.MOUSEBUTTONUP:
+                for rectangle in grille:
+                    if type(rectangle) == pygame.Rect and rectangle.collidepoint(event.pos):
+                        affiche_grille()
+                        jouer(tour, grille, rectangle)
+            elif event.type == pygame.QUIT:
+                jeu = False
+                pygame.quit()
 
 
 def creer_grille() -> list:
-    return [' ' for _ in range(9)]
+    """
+    Fonction qui permet de créer la Grille
+    """
+    cases = []
+    taille_case = (GetSystemMetrics(0) - GetSystemMetrics(1)) / 10
+    colonne = int(GetSystemMetrics(0) / 10)
+    for x in range(0, colonne, int(taille_case)):
+        ligne = 3
+        for y in range(0, GetSystemMetrics(1), int(taille_case)):
+            if ligne > 0:
+                rect = pygame.Rect(x + (GetSystemMetrics(0) / 2.25), y + (GetSystemMetrics(1) / 8),
+                                   taille_case, taille_case)
+                pygame.draw.rect(ecran, (255, 255, 255), rect, 3)
+                cases.append(rect)
+                ligne = ligne - 1
+    return cases
 
 
-def affiche_grille(g: list) -> None:
-    assert (type(g) == list)
-
-    print("\nNuméros de la Grille de Jeu")
-
-    print("_____________\n| 1 | 2 | 3 |\n| 4 | 5 | 6 |\n| 7 | 8 | 9 |\n_____________")
-
-    print("\nGrille du Jeu")
-
-    print("_____________\n| {} | {} | {} |\n| {} | {} | {} |\n| {} | {} | {} |\n_____________".format(g[0], g[1], g[2],
-                                                                                                      g[3], g[4], g[5],
-                                                                                                      g[6], g[7], g[8]))
+def affiche_grille() -> None:
+    """
+    Fonction qui permet d'afficher la Grille avec et sans numéros
+    """
+    pygame.display.flip()
 
 
-def jouer(j: str, g: list) -> None:
-    assert (type(g) == list and type(j) == str and (j == "O" or j == "X"))
-    print("Joueur:", j, 'Nom:', joueur_x if j == 'X' else joueur_o)
-    case_joueur = random.randrange(len(g)) if mode == 'pc' and j == 'O' else int(
-        input('Quelle case voulez-vous jouer ?')) - 1
-    case_jeu = g[case_joueur].replace(' ', '')
-
-    if not case_jeu:
-        g[case_joueur] = j
-        affiche_grille(g)
-        if victoire(g):
-            print('Le joueur {} qui était {} a gagné !'.format(j, joueur_x if j == 'X' else joueur_o))
-            main(True) if input("Voulez-vous recommencer cette partie ?").lower() == "oui" else main() \
-                if input("Voulez-vous commencer une nouvelle partie ?").lower() == "oui" else exit()
-        elif egalite(g):
-            print('Aucun joueur n\'a gagné.')
-            main(True) if input("Voulez-vous recommencer cette partie ?").lower() == "oui" else main() \
-                if input("Voulez-vous commencer une nouvelle partie ?").lower() == "oui" else exit()
+def jouer(j: str, g: list, r: pygame.Rect = None) -> None:
+    """
+    Fonction qui permet à l'un des joueurs de jouer sur la Grille
+    :param j: Joueur
+    :param g: Grille
+    :param r: Rectangle (facultatif)
+    """
+    global tour
+    image_x = pygame.image.load("assets/x.png").convert_alpha()
+    image_o = pygame.image.load("assets/o.png").convert_alpha()
+    if not r:
+        case = random.randrange(len(g))
+        if type(g[case]) == pygame.Rect:
+            image_x = pygame.transform.scale(image_x, (g[case].width, g[case].height))
+            image_o = pygame.transform.scale(image_o, (g[case].width, g[case].height))
+            ecran.blit(image_x, (g[case].topleft, g[case].bottomright)) if tour == 'X' else ecran.blit(
+                image_o, (g[case].topleft, g[case].bottomright))
+            g[case] = j
+            tour = 'X' if j == 'O' else 'O'
         else:
-            jouer('X' if j == 'O' else 'O', g)
+            jouer(j, g)
+            return
     else:
-        if mode == 'joueur':
-            print("La case mentionnée est occupée, choississez-en une autre.")
-        jouer(j, g)
+        case = g.index(r)
+        image_x = pygame.transform.scale(image_x, (g[case].width, g[case].height))
+        image_o = pygame.transform.scale(image_o, (g[case].width, g[case].height))
+        ecran.blit(image_x, (g[case].topleft, g[case].bottomright)) if tour == 'X' \
+            else ecran.blit(image_o, (g[case].topleft, g[case].bottomright))
+        g[case] = j
+        tour = 'X' if j == 'O' else 'O'
+    affiche_grille()
+    if victoire(g):
+        score[joueur_x if j == 'X' else joueur_o] += 1
+        messagebox.showinfo('Morpion',
+                            'Le joueur {} qui était {} a gagné !\nScore: ({}) {} - {} ({})'
+                            .format(j, joueur_x if j == 'X' else joueur_o, joueur_x, score[joueur_x],
+                                    score[joueur_o], joueur_o))
+        main(True) if messagebox.askyesno('Morpion', "Voulez-vous recommencer cette partie ?") else main() \
+            if messagebox.askyesno('Morpion', "Voulez-vous commencer une nouvelle partie ?") else exit()
+    elif egalite(g):
+        messagebox.showinfo('Morpion', 'Vous avez fait égalité.\nScore: ({}) {} - {} ({})'
+                            .format(joueur_x, score[joueur_x], score[joueur_o], joueur_o))
+        main(True) if messagebox.askyesno('Morpion', "Voulez-vous recommencer cette partie ?") else main() \
+            if messagebox.askyesno('Morpion', "Voulez-vous commencer une nouvelle partie ?") else exit()
+    if mode == 'pc' and j == 'X':
+        jouer('O', g)
+    affiche_grille()
 
 
 def egalite(g: list) -> bool:
@@ -72,16 +139,20 @@ def egalite(g: list) -> bool:
     :param g: Grille
     :return: Valeur Booléenne
     """
-
     assert (type(g) == list)
-    e = True
     for c in g:
-        if c == ' ':
-            e = False
-    return e
+        if type(c) == pygame.Rect:
+            return False
+    return True
 
 
 def victoire(g: list) -> bool:
+    """
+    Fonction qui vérifie si la situation de victoire est présente pour l'un des
+    joueurs
+    :param g: Grille
+    :return: Valeur Booléenne
+    """
     assert (type(g) == list)
     cases_alignes = [
         # COLONNES
